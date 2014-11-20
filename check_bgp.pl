@@ -1,9 +1,9 @@
-#!/usr/bin/perl
-# nagios: +epn
-#
-# check_bgp - nagios plugin 
+#!/usr/bin/perl -w
+# check_bgp - nagios plugin
+# See /usr/local/etc/quagga-snmp-bgpd on routers
 #
 # Copyright (C) 2006 Larry Low
+#               2014 Sebastien Badia
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -19,16 +19,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #
-# Report bugs to:  llow0@yahoo.com
-#
-# Primary MIB reference - BGP4-MIB
-#
-# Version 0.4
-#  - added snmpv3 support
-# Version 0.3 
-#  - fixed $snmp was not checked for being defined
-# Version 0.2
-#  - added conformed with ePN
+# http://routing.explode.gr/quagga-snmp
+# http://exchange.nagios.org/directory/Plugins/Network-Protocols/BGP-2D4/check_bgp/details
+# http://forums.cacti.net/viewtopic.php?f=12&t=51271
+# http://xmodulo.com/monitor-bgp-sessions-nagios.html
 #
 use strict;
 use warnings;
@@ -47,7 +41,6 @@ $PROGNAME = "check_bgp.pl";
 sub print_help ();
 sub print_usage ();
 use POSIX qw(floor);
-sub seconds_to_string($);
 
 my ($opt_h,$opt_V);
 my $community = "public";
@@ -67,7 +60,7 @@ GetOptions(
 # -h & --help print help
 if ($opt_h) { print_help(); exit $ERRORS{'OK'}; }
 # -V & --version print version
-if ($opt_V) { print_revision($PROGNAME,'$Revision: 0.4 $ '); exit $ERRORS{'OK'}; }
+if ($opt_V) { print_revision($PROGNAME,'$Revision: 0.2 $ '); exit $ERRORS{'OK'}; }
 # Invalid hostname print usage
 if (!utils::is_hostname($hostname)) { print_usage(); exit $ERRORS{'UNKNOWN'}; }
 # No BGP peer specified, print usage
@@ -113,70 +106,25 @@ my $state = 'UNKNOWN';
 my $output = "$bgppeer status retrieval failed.";
 # Begin plugin check code
 {
-	my $bgpPeerState = "1.3.6.1.2.1.15.3.1.2";
-	my $bgpPeerAdminStatus = "1.3.6.1.2.1.15.3.1.3";
-	my $bgpPeerRemoteAs = "1.3.6.1.2.1.15.3.1.9";
-	my $bgpPeerLastError = "1.3.6.1.2.1.15.3.1.14";
-	my $bgpPeerFsmEstablishedTime = "1.3.6.1.2.1.15.3.1.16";
+
+	my $bgpsnmp = "1.3.6.1.4.1.99999.1.9";
+	my $bgpPeer = "1";
+	my $bgpPeerState = "2";
+	my $bgpPeerRemoteAs = "3";
+	my $bgpPeerMessage = "4";
+	my $bgpPeerLastError = "5";
 
 	my %bgpPeerStates = (
-		-1 => 'unknown(-1)',
-		1 => 'idle(1)',
-		2 => 'connect(2)',
-		3 => 'active(3)',
-		4 => 'opensent(4)',
-		5 => 'openconfirm(5)',
-		6 => 'established(6)'
-	);
-
-	my %bgpPeerAdminStatuses = (
-		1=>'stop(1)',
-		2=>'start(2)'
-	);
-
-	my %bgpErrorCodes = (
-		'01 00' => 'Message Header Error',
-		'01 01' => 'Message Header Error - Connection Not Synchronized',
-		'01 02' => 'Message Header Error - Bad Message Length',
-		'01 03' => 'Message Header Error - Bad Message Type',
-		'02 00' => 'OPEN Message Error',
-		'02 01' => 'OPEN Message Error - Unsupported Version Number',
-		'02 02' => 'OPEN Message Error - Bad Peer AS',
-		'02 03' => 'OPEN Message Error - Bad BGP Identifier',
-		'02 04' => 'OPEN Message Error - Unsupported Optional Parameter',
-		'02 05' => 'OPEN Message Error', #deprecated
-		'02 06' => 'OPEN Message Error - Unacceptable Hold Time',
-		'03 00' => 'UPDATE Message Error',
-		'03 01' => 'UPDATE Message Error - Malformed Attribute List',
-		'03 02' => 'UPDATE Message Error - Unrecognized Well-known Attribute',
-		'03 03' => 'UPDATE Message Error - Missing Well-known Attribute',
-		'03 04' => 'UPDATE Message Error - Attribute Flags Error',
-		'03 05' => 'UPDATE Message Error - Attribute Length Erro',
-		'03 06' => 'UPDATE Message Error - Invalid ORIGIN Attribute',
-		'03 07' => 'UPDATE Message Error', #deprecated
-		'03 08' => 'UPDATE Message Error - Invalid NEXT_HOP Attribute',
-		'03 09' => 'UPDATE Message Error - Optional Attribute Error',
-		'03 0A' => 'UPDATE Message Error - Invalid Network Field',
-		'03 0B' => 'UPDATE Message Error - Malformed AS_PATH',
-		'04 00' => 'Hold Timer Expired',
-		'05 00' => 'Finite State Machine Error',
-		'06 00' => 'Cease',
-		'06 01' => 'Cease - Maximum Number of Prefixes Reached',
-		'06 02' => 'Cease - Administrative Shutdown',
-		'06 03' => 'Cease - Peer De-configured',
-		'06 04' => 'Cease - Administrative Reset',
-		'06 05' => 'Cease - Connection Rejected',
-		'06 06' => 'Cease - Other Configuration Change',
-		'06 07' => 'Cease - Connection Collision Resolution',
-		'06 08' => 'Cease - Out of Resources'
+		0 => 'down',
+		1 => 'up'
 	);
 
 	my @snmpoids;
-	push (@snmpoids,"$bgpPeerState.$bgppeer");
-	push (@snmpoids,"$bgpPeerAdminStatus.$bgppeer");
-	push (@snmpoids,"$bgpPeerRemoteAs.$bgppeer");
-	push (@snmpoids,"$bgpPeerLastError.$bgppeer");
-	push (@snmpoids,"$bgpPeerFsmEstablishedTime.$bgppeer");
+	push (@snmpoids,"$bgpsnmp.$bgppeer.$bgpPeer");
+	push (@snmpoids,"$bgpsnmp.$bgppeer.$bgpPeerState");
+	push (@snmpoids,"$bgpsnmp.$bgppeer.$bgpPeerRemoteAs");
+	push (@snmpoids,"$bgpsnmp.$bgppeer.$bgpPeerMessage");
+	push (@snmpoids,"$bgpsnmp.$bgppeer.$bgpPeerLastError");
 	my $result = $snmp->get_request(
 		-varbindlist => \@snmpoids
 	);
@@ -187,42 +135,25 @@ my $output = "$bgppeer status retrieval failed.";
 		exit $ERRORS{'UNKNOWN'};
 	}
 
-	if ($result->{"$bgpPeerState.$bgppeer"} ne "noSuchInstance") {
+	if ($result->{"$bgpsnmp.$bgppeer.$bgpPeerState"} ne "noSuchInstance") {
 		$output = "$bgppeer (AS".
-			$result->{"$bgpPeerRemoteAs.$bgppeer"}.
+			$result->{"$bgpsnmp.$bgppeer.$bgpPeerRemoteAs"}.
 			") state is ".
-			$bgpPeerStates{$result->{"$bgpPeerState.$bgppeer"}};
+			$bgpPeerStates{$result->{"$bgpsnmp.$bgppeer.$bgpPeerState"}};
 
-		my $lasterror;
-		my $lasterrorcode = $result->{"$bgpPeerLastError.$bgppeer"};
-		if (hex($lasterrorcode) != 0) {
-			$lasterrorcode = substr($lasterrorcode,2,2)." ".substr($lasterrorcode,4,2);
-			my ($code,$subcode) = split(" ",$lasterrorcode);
-			if (!defined($bgpErrorCodes{$lasterrorcode})) {
-				$lasterror = $bgpErrorCodes{"$code 00"};
-			} else {
-				$lasterror = $bgpErrorCodes{$lasterrorcode};
-			}
-			if (!defined($lasterror)) {
-				$lasterror = "Unknown ($code $subcode)";
-			}
-		}
+		my $established = $result->{"$bgpsnmp.$bgppeer.$bgpPeerLastError"};
 
-		my $establishedtime = seconds_to_string($result->{"$bgpPeerFsmEstablishedTime.$bgppeer"});
-
-		if ($result->{"$bgpPeerState.$bgppeer"} == 6) {
+		if ($result->{"$bgpsnmp.$bgppeer.$bgpPeerState"} == 1) {
 			$state = 'OK';
-			$output .= ". Established for $establishedtime.";
-		} elsif ($result->{"$bgpPeerAdminStatus.$bgppeer"} == 1) { #stop
-			$state = 'WARNING'; # admin down do warning
-			$output .= " (administratively down). Last established $establishedtime.";
+			$output .= ". Last change ($established)";
 		} else {
-			$state = 'CRITICAL';
-			$output .= ". Last established $establishedtime.";
-		}
-
-		if (defined($lasterror)) {
-			$output .= " Last error \"$lasterror\".";
+			if ($result->{"$bgpsnmp.$bgppeer.$bgpPeerMessage"} =~ 'Idle') {
+				$state = 'WARNING';
+				$output .= ". (disabled by admin) - Last change ($established)";
+			} else {
+				$state = 'CRITICAL';
+				$output .= ". Last change ($established)";
+			}
 		}
 	}
 }
@@ -230,8 +161,8 @@ print "$state - $output\n";
 exit $ERRORS{$state};
 
 sub print_help() {
-	print_revision($PROGNAME,'$Revision: 0.4 $ ');
-	print "Copyright (c) 2006 Larry Low\n";
+	print_revision($PROGNAME,'$Revision: 0.2 $ ');
+	print "Copyright (c) 2014 Sebastien Badia\n";
 	print "This program is licensed under the terms of the\n";
 	print "GNU General Public License\n(check source code for details)\n";
 	print "\n";
@@ -262,31 +193,4 @@ sub print_usage() {
 	print "  $PROGNAME -H <HOSTNAME> [-C <community>] -p <bgppeer>\n";
 	print "  $PROGNAME [-h | --help]\n";
 	print "  $PROGNAME [-V | --version]\n";
-}
-
-sub seconds_to_string($) {
-	my $time = shift;
-	my $timestr = "";
-	if ($time > (365.24225*24*60*60)) {
-		my $years = floor($time / (365.24225*24*60*60));
-		$time -= $years*365.24225*24*60*60;
-		$timestr .= $years."y";
-	}
-	if ($time > (24*60*60)) {
-		my $days = floor($time / (24*60*60));
-		$time -= $days*24*60*60;
-		$timestr .= $days."d";
-	}
-	if ($time > (60*60)) {
-		my $hours = floor($time / (60*60));
-		$time -= $hours*60*60;
-		$timestr .= $hours."h";
-	}
-	if ($time > 60) {
-		my $minutes = floor($time / 60);
-		$time -= $minutes*60;
-		$timestr .= $minutes."m";
-	}
-	$timestr .= $time."s";
-	return $timestr;
 }
