@@ -1,6 +1,7 @@
 #! /usr/bin/perl
 # --------------------------------------------------------------------
 # Copyright (C) 2004-2006 Oliver Hitz <oliver@net-track.ch>
+#               2014 Sebastien Badia <seb@sebian.fr>
 #
 # $Id: quagga-snmp-bgpd.in,v 1.3 2006-07-04 14:26:03 oli Exp $
 #
@@ -33,11 +34,11 @@ use strict;
 my $baseoid = ".1.3.6.1.4.1.99999.1";
 
 # Put in the path to vtysh:
-my $vtysh = "/usr/bin/vtysh";
+my $vtysh = "/usr/local/bin/vtysh";
 
 # Results from "sh ip bgp su" are cached for some seconds so that an
 # SNMP walk doesn't result in vtysh being called hundreds of times:
-my $cache_secs = 60;
+my $cache_secs = 240;
 
 # --------------------------------------------------------------------
 
@@ -174,7 +175,7 @@ sub create_bgp_mib
 	$bgp{"5"}[1] += $n[9];
       } else {
 	$bgp{"9.".$n[0].".2"} = [ "integer", 0 ];
-	$bgp{"9.".$n[0].".4"} = [ "integer", 0 ];      }
+	$bgp{"9.".$n[0].".4"} = [ "string", $n[9] ];      }
       # .3 ASN
       $bgp{"9.".$n[0].".3"} = [ "integer", $n[2] ];
       # .5 Up/down
