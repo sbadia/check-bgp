@@ -391,22 +391,6 @@ if cd $PLUGINSDIR ; then
 fi
 
 
-# Plugins
-if cd $PLUGINSDIR ; then
-    for skript in $(ls) ; do
-        if [ -f "$skript" -a -x "$skript" ] ; then
-            ./$skript
-        fi
-    done
-    # Call some plugins only every X'th minute
-    for skript in [1-9]*/* ; do
-        if [ -x "$skript" ] ; then
-            run_cached plugins_${skript//\//\\} ${skript%/*} "$skript"
-        fi
-    done
-fi
-
-
 # MK's Remote Plugin Executor
 if [ -e "$MK_CONFDIR/mrpe.cfg" ]
 then
