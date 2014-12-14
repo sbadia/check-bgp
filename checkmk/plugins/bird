@@ -1,0 +1,72 @@
+#!/usr/local/bin/bash
+
+# Author: Mehdi Abaakouk <sileht@sileht.net>
+#         Sebastien Badia <seb@sebian.fr>
+
+# EXAMPLE RAW DATA
+# BIRD 1.2.5 ready.
+# Access restricted
+# bird> show protocols
+# name     proto    table    state  since       info
+# TETANEUTRA BGP      master   up     Aug30       Established   
+#   Preference:     100
+#   Input filter:   ACCEPT
+#   Output filter:  REJECT
+#   Routes:         418770 imported, 0 exported, 418770 preferred
+#   Route change stats:     received   rejected   filtered    ignored   accepted
+#     Import updates:        1567207          0          0       5705    1561502
+#     Import withdraws:        70503          0        ---          0      70503
+#     Export updates:        1561502    1561502          0        ---          0
+#     Export withdraws:        70503        ---        ---        ---          0
+#   BGP state:          Established
+#     Neighbor address: 91.224.149.152
+#     Neighbor AS:      197422
+#     Neighbor ID:      91.224.149.152
+#     Neighbor caps:    refresh AS4
+#     Session:          external multihop AS4
+#     Source address:   178.33.111.110
+#     Hold timer:       184/240
+#     Keepalive timer:  73/80
+#
+# EXAMPLE OUTPUT DATA:
+# <<<bird>>>
+# 0 0 0 4 device1  Device   master   up     2012-07-10 13:19:48   
+# 2 0 2 4 static_bgp Static   master   up     2012-07-10 13:19:48   
+# 2 0 2 4 static1  Static   master   up     2012-07-10 13:19:48   
+# 0 418823 0 4 kernel1  Kernel   master   up     2012-07-10 13:19:48   
+# 418672 2 375660 4 GIXE     BGP      master   up     2012-08-10 10:35:21  Established    
+# 0 0 0 4 LIAZO    BGP      master   start  2012-07-10 13:19:48  Connect       Socket: No route to host 
+# 42998 1 1771 4 ABSOLIGHT BGP      master   up     2012-08-21 19:53:12  Established    
+# 46 1 45 4 FR_IX_RS1 BGP      master   up     2012-07-10 13:19:58  Established    
+# 46 1 0 4 FR_IX_RS2 BGP      master   up     2012-07-10 13:19:57  Established    
+# 229 418720 103 4 TETANEUTRAL BGP      master   up     2012-08-30 06:17:32  Established    
+# 4792 1 3274 4 FRANCE_IX_RS1 BGP      master   up     2012-08-28 15:44:38  Established    
+
+
+header_printed=
+for cmd in birdc birdc6 ; do 
+	if which $cmd >/dev/null ; then
+		[ "$header_printed" ] || echo "<<<bird>>>"
+		header_printed=1
+
+		[ "$cmd" = "birdc" ] && ipversion=4 || ipversion=6
+		echo show protocols all | $cmd -r | awk -v ipversion=$ipversion '
+/^Access restricted/{next}
+/^name.*proto.*table/{next}
+/^BIRD/{next}
+/^bird>/{next}
+/^[^ ]/ {
+	if (summary) 
+		printf("%s %s\n", routes, summary) 
+	summary = sprintf("%s %s ", ipversion,  $0)
+	routes = "0 0 0"
+}
+/^[ ]+Routes:/ {
+	routes = sprintf("%d %d %d", $2, $4, $6)
+}
+END {
+	if (summary)
+		printf("%s %s\n", routes, summary) 
+}'
+	fi
+done
